@@ -1,4 +1,4 @@
-from aiogram import types, Router
+from aiogram import types, Router, F
 from aiogram.filters import CommandStart, Command
 
 user_private_router = Router()
