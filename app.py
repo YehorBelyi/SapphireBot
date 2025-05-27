@@ -22,8 +22,6 @@ from common.bot_cmds_list import private
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# dp.update.middleware(CounterMiddleware())
-
 # Addomg admins for my bot
 bot.my_admins_list = []
 
