@@ -1,5 +1,7 @@
 Lib/
 Scripts/
+include/
+my_base.db
 pyvenv.cfg
 .env
 **/__pycache__/
