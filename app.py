@@ -18,8 +18,6 @@ from handlers.user_group import user_group_router
 from handlers.admin_private import admin_router
 from common.bot_cmds_list import private
 
-ALLOWED_UPDATES = ['message, edited_message']
-
 # Added parsemode to format bot messages
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -55,7 +53,9 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(commands=private, scope=BotCommandScopeAllPrivateChats())
-    await dp.start_polling(bot, allowed_updates=ALLOWED_UPDATES)
+    # resolve_used_update_types - bot will process only those updates, which we use in the project
+    # in particular: message, edited_message, callback_query
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

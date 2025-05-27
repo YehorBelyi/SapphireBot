@@ -4,6 +4,8 @@ from aiogram.utils.formatting import as_list, as_marked_section, Bold
 from filters.chat_types import ChatTypeFilter
 
 from keyboards.reply import generate_keyboard
+from sqlalchemy.ext.asyncio import AsyncSession
+from database.orm_query import orm_get_products
 
 user_private_router = Router()
 user_private_router.message.filter(ChatTypeFilter(['private']))
@@ -19,8 +21,13 @@ async def start_cmd(message: types.Message):
                          ))
 
 @user_private_router.message(or_f(Command("menu"), (F.text.lower() == "menu")))
-async def echo(message: types.Message):
+async def echo(message: types.Message, session: AsyncSession):
     await message.answer("Command menu")
+    for product in await orm_get_products(session):
+        await message.answer_photo(product.image,
+                                   caption=f"<b>{product.name}</b>\n"
+                                           f"<b>{product.description}</b>\n"
+                                           f"Price: {round(product.price, 2)}")
 
 @user_private_router.message(or_f(Command("about"), (F.text.lower() == "about")))
 async def echo(message: types.Message):

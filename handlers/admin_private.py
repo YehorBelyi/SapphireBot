@@ -2,10 +2,11 @@ from aiogram import F, Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database.orm_query import orm_add_product, orm_get_products
+from database.orm_query import orm_add_product, orm_get_products, orm_delete_product
 
 from filters.chat_types import ChatTypeFilter
 from filters.admin_filter import IsAdmin
+from keyboards.inline import get_callback_btns
 from keyboards.reply import generate_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,4 +111,15 @@ async def add_product(message: types.Message, state: FSMContext, session: AsyncS
         await message.answer_photo(product.image,
                                    caption=f"<b>{product.name}</b>\n"
                                            f"<b>{product.description}</b>\n"
-                                           f"Price: {round(product.price, 2)}")
+                                           f"Price: {round(product.price, 2)}",
+                                   reply_markup=get_callback_btns(btns={
+                                       "Delete":f"delete_{product.id}",
+                                       "Edit":f"edit_{product.id}",
+                                   }))
+
+@admin_router.callback_query(F.data.startswith("delete_"))
+async def delete_product(callback: types.CallbackQuery, session: AsyncSession):
+    product_id = callback.data.split("_")[-1]
+    await orm_delete_product(session, int(product_id))
+    await callback.answer("Deleted product")
+    await callback.message.answer(f"Product with <b>ID: {product_id}</b> has been deleted")
