@@ -10,6 +10,8 @@ from keyboards.reply import generate_keyboard
 admin_router = Router()
 admin_router.message.filter(ChatTypeFilter(["private"]), IsAdmin())
 
+
+
 ADMIN_KB = generate_keyboard(
     "Add product", "Edit product", "Delete product", "Doing smth here",
     placeholder="Choose an action",
@@ -94,3 +96,8 @@ async def add_image(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await message.answer(str(data))
     await state.clear()
+
+@admin_router.message(F.text == "Delete product")
+async def add_product(message: types.Message, state: FSMContext):
+    print(counter)
+    await message.answer("Deleted your product")

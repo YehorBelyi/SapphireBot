@@ -13,6 +13,7 @@ from handlers.user_private import user_private_router
 from handlers.user_group import user_group_router
 from handlers.admin_private import admin_router
 from common.bot_cmds_list import private
+from middlewares.database import CounterMiddleware
 
 load_dotenv()
 
@@ -21,6 +22,8 @@ ALLOWED_UPDATES = ['message, edited_message']
 # Added parsemode to format bot messages
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
+
+# dp.update.middleware(CounterMiddleware())
 
 # Addomg admins for my bot
 bot.my_admins_list = []
