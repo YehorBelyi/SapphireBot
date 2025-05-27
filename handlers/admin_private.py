@@ -1,8 +1,9 @@
 from aiogram import F, Router, types
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from database.orm_query import orm_add_product, orm_get_products, orm_delete_product
+from database.orm_query import orm_add_product, orm_get_products, orm_get_product, orm_delete_product, \
+    orm_update_product
 
 from filters.chat_types import ChatTypeFilter
 from filters.admin_filter import IsAdmin
@@ -12,8 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 admin_router = Router()
 admin_router.message.filter(ChatTypeFilter(["private"]), IsAdmin())
-
-
 
 ADMIN_KB = generate_keyboard(
     "Add product", "All products",
@@ -27,6 +26,8 @@ class AddProduct(StatesGroup):
     desc = State()
     price = State()
     image = State()
+
+    product_to_edit = None
 
     texts = {
         'AddProduct:name': 'Type name of the product again:',
@@ -54,6 +55,9 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
     if current_state is None:
         return
 
+    if AddProduct.product_to_edit:
+        AddProduct.product_to_edit = None
+
     await state.clear()
     await message.answer("The process of adding a product was canceled", reply_markup=ADMIN_KB)
 
@@ -74,36 +78,66 @@ async def go_back_handler(message: types.Message, state: FSMContext) -> None:
             return
         previous = step
 
-@admin_router.message(AddProduct.name, F.text)
+@admin_router.message(AddProduct.name, or_f(F.text, F.text == "."))
 async def add_name(message: types.Message, state: FSMContext):
-    await state.update_data(name=message.text)
+    if message.text == ".":
+        await state.update_data(name=AddProduct.product_to_edit.name)
+    else:
+        if len(message.text) >= 100:
+            await message.answer("Name length of the product can't be greater than 100 characters!")
+            return
+        await state.update_data(name=message.text)
+
     await message.answer("Type desc of the product")
     await state.set_state(AddProduct.desc)
 
-@admin_router.message(AddProduct.desc, F.text)
+@admin_router.message(AddProduct.desc, or_f(F.text, F.text == "."))
 async def add_desc(message: types.Message, state: FSMContext):
-    await state.update_data(desc=message.text)
+    if message.text == ".":
+        await state.update_data(desc=AddProduct.product_to_edit.description)
+    else:
+        await state.update_data(desc=message.text)
     await message.answer("Type price of the product:")
     await state.set_state(AddProduct.price)
 
-@admin_router.message(AddProduct.price, F.text)
+@admin_router.message(AddProduct.price, or_f(F.text, F.text == "."))
 async def add_price(message: types.Message, state: FSMContext):
-    await state.update_data(price=message.text)
+    if message.text == ".":
+        await state.update_data(price=AddProduct.product_to_edit.price)
+    else:
+        try:
+            float(message.text)
+        except ValueError:
+            await message.answer("Invalid price! Type appropriate value:")
+            return
+
+        await state.update_data(price=message.text)
     await message.answer("Attach an image of your product:")
     await state.set_state(AddProduct.image)
 
-@admin_router.message(AddProduct.image, F.photo)
+@admin_router.message(AddProduct.image, or_f(F.photo, F.text == "."))
 async def add_image(message: types.Message, state: FSMContext, session: AsyncSession):
-    await state.update_data(image=message.photo[-1].file_id)
+
+    if message.text and message.text == ".":
+        await state.update_data(image=AddProduct.product_to_edit.image)
+    else:
+        await state.update_data(image=message.photo[-1].file_id)
+
     data = await state.get_data()
 
     try:
-        await orm_add_product(session, data)
-        await message.answer("Your product has been added", reply_markup=ADMIN_KB)
+        if AddProduct.product_to_edit:
+            await orm_update_product(session, AddProduct.product_to_edit.id, data)
+            await message.answer("Your product has been edited", reply_markup=ADMIN_KB)
+        else:
+            await orm_add_product(session, data)
+            await message.answer("Your product has been added", reply_markup=ADMIN_KB)
         await state.clear()
     except Exception as e:
         await message.answer("Something went wrong while adding your product. Report this problem", reply_markup=ADMIN_KB)
         await state.clear()
+
+    AddProduct.product_to_edit = None
 
 @admin_router.message(F.text == "All products")
 async def add_product(message: types.Message, state: FSMContext, session: AsyncSession):
@@ -123,3 +157,14 @@ async def delete_product(callback: types.CallbackQuery, session: AsyncSession):
     await orm_delete_product(session, int(product_id))
     await callback.answer("Deleted product")
     await callback.message.answer(f"Product with <b>ID: {product_id}</b> has been deleted")
+
+@admin_router.callback_query(StateFilter(None), F.data.startswith("edit_"))
+async def edit_product(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+    product_id = callback.data.split("_")[-1]
+    product_to_edit = await orm_get_product(session, int(product_id))
+
+    AddProduct.product_to_edit = product_to_edit
+    await callback.answer("Edited product")
+    await callback.message.answer("Type name of the product", reply_markup=types.ReplyKeyboardRemove())
+
+    await state.set_state(AddProduct.name)
