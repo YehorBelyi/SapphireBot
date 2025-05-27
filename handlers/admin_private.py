@@ -2,10 +2,12 @@ from aiogram import F, Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from database.orm_query import orm_add_product, orm_get_products
 
 from filters.chat_types import ChatTypeFilter
 from filters.admin_filter import IsAdmin
 from keyboards.reply import generate_keyboard
+from sqlalchemy.ext.asyncio import AsyncSession
 
 admin_router = Router()
 admin_router.message.filter(ChatTypeFilter(["private"]), IsAdmin())
@@ -13,9 +15,9 @@ admin_router.message.filter(ChatTypeFilter(["private"]), IsAdmin())
 
 
 ADMIN_KB = generate_keyboard(
-    "Add product", "Edit product", "Delete product", "Doing smth here",
+    "Add product", "All products",
     placeholder="Choose an action",
-    sizes=(2, 1, 1)
+    sizes=(2,),
 )
 
 # Storing all steps when adding a product
@@ -90,14 +92,22 @@ async def add_price(message: types.Message, state: FSMContext):
     await state.set_state(AddProduct.image)
 
 @admin_router.message(AddProduct.image, F.photo)
-async def add_image(message: types.Message, state: FSMContext):
+async def add_image(message: types.Message, state: FSMContext, session: AsyncSession):
     await state.update_data(image=message.photo[-1].file_id)
-    await message.answer("Your product has been added", reply_markup=ADMIN_KB)
     data = await state.get_data()
-    await message.answer(str(data))
-    await state.clear()
 
-@admin_router.message(F.text == "Delete product")
-async def add_product(message: types.Message, state: FSMContext):
-    print(counter)
-    await message.answer("Deleted your product")
+    try:
+        await orm_add_product(session, data)
+        await message.answer("Your product has been added", reply_markup=ADMIN_KB)
+        await state.clear()
+    except Exception as e:
+        await message.answer("Something went wrong while adding your product. Report this problem", reply_markup=ADMIN_KB)
+        await state.clear()
+
+@admin_router.message(F.text == "All products")
+async def add_product(message: types.Message, state: FSMContext, session: AsyncSession):
+    for product in await orm_get_products(session):
+        await message.answer_photo(product.image,
+                                   caption=f"<b>{product.name}</b>\n"
+                                           f"<b>{product.description}</b>\n"
+                                           f"Price: {round(product.price, 2)}")
