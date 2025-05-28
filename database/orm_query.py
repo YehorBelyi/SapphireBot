@@ -104,6 +104,7 @@ async def orm_add_banner_description(session: AsyncSession, data: dict):
     if result.first():
         return
     session.add_all([Banner(name=name, description=description) for name, description in data.items()])
+    await session.commit()
 
 async def orm_update_banner_image(session: AsyncSession, name: str, image: str):
     query = update(Banner).where(Banner.name == name).values(image=image)
