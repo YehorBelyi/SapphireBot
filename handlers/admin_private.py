@@ -24,6 +24,7 @@ ADMIN_KB = generate_keyboard(
 class AddProduct(StatesGroup):
     name = State()
     desc = State()
+    category = State()
     price = State()
     image = State()
 

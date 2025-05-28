@@ -1,20 +1,63 @@
+import math
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
+from sqlalchemy.orm import joinedload
 
-from database.models import Product
+from database.models import Product, Cart, Category, Banner, User
 
+class Paginator:
+    def __init__(self, array: list | tuple, page: int=1, per_page: int=1):
+        self.array = array
+        self.per_page = per_page
+        self.page = page
+        self.len = len(self.array)
+        self.pages = math.ceil(self.len / self.per_page)
+
+    def __get_slice(self):
+        start = (self.page - 1) * self.per_page
+        stop = start + self.per_page
+        return self.array[start:stop]
+
+    def get_page(self):
+        page_items = self.__get_slice()
+        return page_items
+
+    def has_next(self):
+        if self.page < self.pages:
+            return self.page + 1
+        return False
+
+    def has_previous(self):
+        if self.page > 1:
+            return self.page - 1
+        return False
+
+    def get_next(self):
+        if self.page < self.pages:
+            self.page += 1
+            return self.get_page()
+        raise IndexError(f'Next page does not exist. Use has_next() to check before.')
+
+    def get_previous(self):
+        if self.page > 1:
+            self.page -= 1
+            return self.__get_slice()
+        raise IndexError(f'Previous page does not exist. Use has_previous() to check before.')
+
+# === Admin panel ===
 async def orm_add_product(session: AsyncSession, data: dict):
     obj = Product(
         name=data["name"],
         description=data["desc"],
         price=float(data["price"]),
         image=data["image"],
+        category_id=int(data["category"]),
     )
     session.add(obj)
     await session.commit()
 
-async def orm_get_products(session: AsyncSession):
-    query = select(Product)
+async def orm_get_products(session: AsyncSession, category_id: int):
+    query = select(Product).where(Product.category_id == int(category_id))
     result = await session.execute(query)
     return result.scalars().all()
 
@@ -29,6 +72,7 @@ async def orm_update_product(session: AsyncSession, product_id: int, data):
         description=data["desc"],
         price=float(data["price"]),
         image=data["image"],
+        category_id=int(data["category"]),
     )
     await session.execute(query)
     await session.commit()
@@ -36,4 +80,56 @@ async def orm_update_product(session: AsyncSession, product_id: int, data):
 async def orm_delete_product(session: AsyncSession, product_id: int):
     query = delete(Product).where(Product.id == product_id)
     await session.execute(query)
+    await session.commit()
+
+# === User methods ===
+async def orm_add_user(session: AsyncSession,
+                       user_id: int,
+                       first_name: str | None = None,
+                       last_name: str | None = None,
+                       phone: str | None = None):
+    query = select(User).where(User.user_id == user_id)
+    result = await session.execute(query)
+    if result.first() is None:
+        session.add(User(user_id=user_id, first_name=first_name, last_name=last_name, phone=phone,))
+        await session.commit()
+
+# === Cart methods ===
+
+
+# === Banner methods ===
+async def orm_add_banner_description(session: AsyncSession, data: dict):
+    query = select(Banner)
+    result = await session.execute(query)
+    if result.first():
+        return
+    session.add_all([Banner(name=name, description=description) for name, description in data.items()])
+
+async def orm_update_banner_image(session: AsyncSession, name: str, image: str):
+    query = update(Banner).where(Banner.name == name).values(image=image)
+    await session.execute(query)
+    await session.commit()
+
+async def orm_get_banner(session: AsyncSession, page:str):
+    query = select(Banner).where(Banner.name == page)
+    result = await session.execute(query)
+    return result.scalar()
+
+async def orm_get_page_description(session: AsyncSession):
+    query = select(Banner)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+# === Category methods ===
+async def orm_get_categories(session: AsyncSession):
+    query = select(Category)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+async def orm_insert_categories(session: AsyncSession, categories: list):
+    query = select(Category)
+    result = await session.execute(query)
+    if result.first():
+        return
+    session.add_all([Category(name=name) for name in categories])
     await session.commit()
