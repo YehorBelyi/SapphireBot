@@ -1,0 +1,16 @@
+services:
+  sapphire:
+    build: .
+    env_file: .env
+    container_name: "sapphire-bot"
+    depends_on:
+      - db
+    
+  db:
+    container_name: "postgre"
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    ports: 
+      - 5432:5432
+    env_file: "postgre.env"

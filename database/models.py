@@ -53,3 +53,19 @@ class Cart(Base):
 
     user: Mapped["User"] = relationship(backref="cart")
     product: Mapped["Product"] = relationship(backref="cart")
+
+# # Models for role handling
+# class Employee(Base):
+#     __tablename__ = 'employee'
+#
+#     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+#     user_id: Mapped[int] = mapped_column(unique=True)
+#     first_name: Mapped[str] = mapped_column(String(150), nullable=True)
+#     last_name: Mapped[str] = mapped_column(String(150), nullable=True)
+#     phone: Mapped[str] = mapped_column(String(20), nullable=True)
+#
+# class Administrator(Base):
+#     __tablename__ = 'administrator'
+#
+#     employee_id: Mapped[int] = mapped_column(ForeignKey('employee.id', ondelete='CASCADE'), nullable=False)
+#     category: Mapped["Category"] = relationship(backref="employee")

@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 
 from database.models import Product, Cart, Category, Banner, User
 
+
 # === Admin panel ===
 async def orm_add_product(session: AsyncSession, data: dict):
     obj = Product(
@@ -42,6 +43,11 @@ async def orm_delete_product(session: AsyncSession, product_id: int):
     query = delete(Product).where(Product.id == product_id)
     await session.execute(query)
     await session.commit()
+
+# === Roles methods ===
+async def orm_add_employee(session: AsyncSession, data: dict):
+    query = select(Employee).where(Employee.user_id == user_id)
+
 
 # === User methods ===
 async def orm_add_user(session: AsyncSession,

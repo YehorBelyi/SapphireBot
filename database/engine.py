@@ -1,4 +1,5 @@
 import os
+import dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from database.models import Base
@@ -20,6 +21,9 @@ async def create_db():
     async with session_maker() as session:
         await orm_insert_categories(session, categories)
         await orm_add_banner_description(session, page_description)
+
+        # adding super admin
+        # await orm_add_super_admin(session, os.getenv('SUPER_ADMIN'))
 
 
 async def drop_db():

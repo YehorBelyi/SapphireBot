@@ -1,4 +1,4 @@
-from aiogram import F, Router, types
+from aiogram import F, Router, types, Bot
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -7,6 +7,7 @@ from database.orm_query import orm_add_product, orm_get_products, orm_get_produc
 
 from filters.chat_types import ChatTypeFilter
 from filters.admin_filter import IsAdmin
+from handlers.logs import log_product_added
 from keyboards.inline import get_callback_btns
 from keyboards.reply import generate_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -132,7 +133,7 @@ async def add_price(message: types.Message, state: FSMContext):
     await state.set_state(AddProduct.image)
 
 @admin_router.message(AddProduct.image, or_f(F.photo, F.text == "."))
-async def add_image(message: types.Message, state: FSMContext, session: AsyncSession):
+async def add_image(message: types.Message, state: FSMContext, session: AsyncSession, bot: Bot):
 
     if message.text and message.text == ".":
         await state.update_data(image=AddProduct.product_to_edit.image)
@@ -149,6 +150,7 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
             await orm_add_product(session, data)
             await message.answer("Your product has been added", reply_markup=ADMIN_KB)
         await state.clear()
+        await log_product_added(data=data, bot=bot)
     except Exception as e:
         await message.answer(f"Something went wrong while adding your product. Report this problem", reply_markup=ADMIN_KB)
         print(str(e))
