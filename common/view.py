@@ -24,5 +24,6 @@ page_description = {
         sep="\n-----------------------------------\n",
     ).as_html(),
     "catalog":"Available categories: ",
-    "cart": "You haven't chosen anything yet!"
+    "cart": "You haven't chosen anything yet!",
+    "order": "<b>Take into account that you won't be able to do any actions in the shop until you finish your payment!</b>"
 }

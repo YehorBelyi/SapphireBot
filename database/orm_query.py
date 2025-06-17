@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import joinedload
 
-from database.models import Product, Cart, Category, Banner, User
+from database.models import Product, Cart, Category, Banner, User, History
 
 
 # === Admin panel ===
@@ -99,6 +99,12 @@ async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, produc
         await orm_remove_from_cart(session, user_id, product_id)
         await session.commit()
         return False
+
+# === Order history ===
+async def orm_get_order_history(session: AsyncSession, user_id: int):
+    query = select(History).where(History.user_id == user_id).options(joinedload(History.product))
+    await session.execute(query)
+    await session.commit()
 
 # === Banner methods ===
 async def orm_add_banner_description(session: AsyncSession, data: dict):

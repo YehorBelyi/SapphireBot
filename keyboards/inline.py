@@ -123,7 +123,7 @@ def get_user_cart(*,
                                  callback_data=MenuCallBack(level=0,
                                                             menu_name="main").pack()),
             InlineKeyboardButton(text="Order 📦",
-                                 callback_data=MenuCallBack(level=0,
+                                 callback_data=MenuCallBack(level=4,
                                                             menu_name="order").pack()),
         ]
         return keyboard.row(*row2).as_markup()
@@ -132,6 +132,15 @@ def get_user_cart(*,
                                  callback_data=MenuCallBack(level=0,
                                                             menu_name="main").pack()))
         return keyboard.adjust(*sizes).as_markup()
+
+def get_pre_payment_btns(*, level: int, sizes: tuple[int] = (2,)):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text="◀️ Go back",
+                             callback_data=MenuCallBack(level=3,
+                                                        menu_name="cart").pack()))
+    keyboard.add(InlineKeyboardButton(text="Create payment 📋", callback_data=MenuCallBack(level=5,
+                                                                               menu_name="payment").pack()))
+    return keyboard.adjust(*sizes).as_markup()
 
 def get_callback_btns(
         *,

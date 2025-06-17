@@ -1,7 +1,8 @@
 from aiogram.types import InputMediaPhoto
 from database.orm_query import orm_get_banner, orm_get_categories, orm_get_products, orm_delete_product, \
     orm_get_user_carts, orm_delete_from_cart, orm_reduce_product_in_cart, orm_add_to_cart
-from keyboards.inline import get_user_main_btns, get_user_catalog_btns, get_products_btns, get_user_cart
+from keyboards.inline import get_user_main_btns, get_user_catalog_btns, get_products_btns, get_user_cart, \
+    get_pre_payment_btns
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.paginator import Paginator
 
@@ -99,13 +100,22 @@ async def carts(session, level, menu_name, page, user_id, product_id):
 
     return image, kbds
 
-async def get_menu_content(session: AsyncSession,
+async def pre_payment_check(session: AsyncSession, level: int, menu_name: str):
+    banner = await orm_get_banner(session, menu_name)
+    image = InputMediaPhoto(media=banner.image, caption=banner.description)
+    kbds = get_pre_payment_btns(level=level)
+
+    return image, kbds
+
+async def get_menu_content(
+                           session: AsyncSession,
                            level: int,
                            menu_name: str,
                            category:int | None = None,
                            page:int | None = None,
                            product_id:int | None = None,
-                           user_id:int | None = None,):
+                           user_id:int | None = None,
+                            callback_action=None):
     if level == 0:
         return await main_menu(session, level, menu_name)
     elif level == 1:
@@ -114,3 +124,6 @@ async def get_menu_content(session: AsyncSession,
         return await products(session, level, category, page)
     elif level == 3:
         return await carts(session, level, menu_name, page, user_id, product_id)
+    elif level == 4:
+        # await process_payment(callback_action)
+        return await pre_payment_check(session, level, menu_name)

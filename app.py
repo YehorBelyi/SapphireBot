@@ -30,7 +30,7 @@ dp.include_routers(user_private_router, user_group_router, admin_router)
 
 async def on_startup(bot):
     # run_param = False
-    # if run_param: 
+    # if run_param:
     #     await drop_db()
 
     # If old database wasn't dropped, new one won't be created, therefore data that exists there won't be modified
