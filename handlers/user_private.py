@@ -6,7 +6,7 @@ from keyboards.inline import MenuCallBack
 
 from keyboards.reply import generate_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.orm_query import orm_get_products, orm_add_user, orm_add_to_cart
+from database.orm_query import orm_get_products, orm_add_user, orm_add_to_cart, orm_get_order_history
 from handlers.menu_processing import get_menu_content
 
 user_private_router = Router()
@@ -37,7 +37,8 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
         await add_to_cart(callback, callback_data, session)
         return
 
-    media, reply_markup = await get_menu_content(session,
+    try:
+        media, reply_markup = await get_menu_content(session,
                                                  level=callback_data.level,
                                                  menu_name=callback_data.menu_name,
                                                  category=callback_data.category,
@@ -46,5 +47,23 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
                                                  user_id=callback.from_user.id,
                                                  callback_action=callback)
 
-    await callback.message.edit_media(media=media, reply_markup=reply_markup)
-    await callback.answer()
+        await callback.message.edit_media(media=media, reply_markup=reply_markup)
+        await callback.answer()
+    except Exception as e:
+        pass
+
+@user_private_router.message(Command("history"))
+async def user_history(message: types.Message, session: AsyncSession):
+    data = await orm_get_order_history(session, user_id=message.from_user.id)
+
+    if len(data) == 0:
+        await message.answer("No orders found!")
+        return
+    else:
+
+        str = "❇️ YOUR ORDER HISTORY ❇️\n"
+
+        for index, item in enumerate(data, start=1):
+            str += f"\n{index}) {item.product.name} (ordered on: {item.created})"
+
+        await message.answer(str)

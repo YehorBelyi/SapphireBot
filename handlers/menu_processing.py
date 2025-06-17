@@ -1,6 +1,7 @@
 from aiogram.types import InputMediaPhoto
 from database.orm_query import orm_get_banner, orm_get_categories, orm_get_products, orm_delete_product, \
     orm_get_user_carts, orm_delete_from_cart, orm_reduce_product_in_cart, orm_add_to_cart
+from handlers.payment_processing import process_payment
 from keyboards.inline import get_user_main_btns, get_user_catalog_btns, get_products_btns, get_user_cart, \
     get_pre_payment_btns
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,5 +126,6 @@ async def get_menu_content(
     elif level == 3:
         return await carts(session, level, menu_name, page, user_id, product_id)
     elif level == 4:
-        # await process_payment(callback_action)
         return await pre_payment_check(session, level, menu_name)
+    elif level == 5:
+        await process_payment(session, user_id, callback_action)

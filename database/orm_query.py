@@ -100,11 +100,22 @@ async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, produc
         await session.commit()
         return False
 
-# === Order history ===
-async def orm_get_order_history(session: AsyncSession, user_id: int):
-    query = select(History).where(History.user_id == user_id).options(joinedload(History.product))
+async def orm_flush_cart(session: AsyncSession, user_id: int):
+    query = delete(Cart).where(Cart.user_id == user_id)
     await session.execute(query)
     await session.commit()
+
+# === Order history ===
+async def orm_add_order_to_history(session: AsyncSession, user_orders: list):
+    session.add_all([History(user_id=item.user_id, product_id=item.product_id) for item in user_orders])
+    await session.commit()
+
+async def orm_get_order_history(session: AsyncSession, user_id: int):
+    query = select(History).where(History.user_id == user_id).options(joinedload(History.product))
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
 
 # === Banner methods ===
 async def orm_add_banner_description(session: AsyncSession, data: dict):
