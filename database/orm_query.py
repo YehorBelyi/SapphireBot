@@ -218,7 +218,6 @@ async def orm_get_page_description(session: AsyncSession):
         for b in banners
     ]
     await redis_client.set(key, json.dumps(data), ex=300)
-    print(await redis_client(get(key)))
     return data
 
 # === Category methods ===

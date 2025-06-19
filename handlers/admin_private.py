@@ -102,13 +102,13 @@ async def add_desc(message: types.Message, state: FSMContext, session: AsyncSess
         await state.update_data(desc=message.text)
 
     categories = await orm_get_categories(session)
-    btns = {category.name : str(category.id) for category in categories}
+    btns = {category["name"] : str(category["id"]) for category in categories}
     await message.answer("Choose category", reply_markup=get_callback_btns(btns=btns))
     await state.set_state(AddProduct.category)
 
 @admin_router.callback_query(AddProduct.category)
 async def add_category(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
-    if int(callback.data) in [category.id for category in await orm_get_categories(session)]:
+    if int(callback.data) in [category["id"] for category in await orm_get_categories(session)]:
         await callback.answer()
         await state.update_data(category=callback.data)
         await callback.message.answer("Type price of the product:")
@@ -161,7 +161,7 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
 @admin_router.message(F.text == "All products")
 async def add_product(message: types.Message, state: FSMContext, session: AsyncSession):
     categories = await orm_get_categories(session)
-    btns = {category.name : f"category_{category.id}" for category in categories}
+    btns = {category["name"] : f"category_{category["id"]}" for category in categories}
     await message.answer("Choose category", reply_markup=get_callback_btns(btns=btns))
 
 @admin_router.callback_query(F.data.startswith("category_"))
@@ -201,7 +201,7 @@ class AddBanner(StatesGroup):
 
 @admin_router.message(StateFilter(None), F.text == "Add/Edit banner")
 async def add_image(message: types.Message, state: FSMContext, session: AsyncSession):
-    page_names = [page.name for page in await orm_get_page_description(session)]
+    page_names = [page["name"] for page in await orm_get_page_description(session)]
     await message.answer(f"Attach an image of your banner.\nIn description, specify for which page banner is being added.\n{', '.join(page_names)}")
     await state.set_state(AddBanner.image)
 
@@ -209,7 +209,7 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
 async def add_banner(message: types.Message, state: FSMContext, session: AsyncSession):
     image_id = message.photo[-1].file_id
     for_page = message.caption.strip()
-    pages_names = [page.name for page in await orm_get_page_description(session)]
+    pages_names = [page["name"] for page in await orm_get_page_description(session)]
     if for_page not in pages_names:
         await message.answer("Invalid input! Try appropriate value.")
         return

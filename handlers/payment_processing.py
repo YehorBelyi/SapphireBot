@@ -1,3 +1,6 @@
+from idlelib.undo import Command
+
+from aiogram.fsm.state import StatesGroup, State
 from database.orm_query import orm_get_order_history, orm_add_order_to_history, orm_get_user_carts, orm_flush_cart
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.types import CallbackQuery, PreCheckoutQuery, SuccessfulPayment, LabeledPrice
@@ -9,6 +12,9 @@ import asyncio
 
 payment_router = Router()
 payment_timers = {}
+
+class PaymentProcessing(StatesGroup):
+    process_payment = State()
 
 @payment_router.pre_checkout_query()
 async def pre_checkout_query_handler(pre_checkout_query: PreCheckoutQuery):
@@ -45,7 +51,7 @@ async def process_payment(session: AsyncSession, user_id: int, callback: Callbac
 
 async def timer(chat_id:int, bot: Bot, payment_message_id: int):
     try:
-        await asyncio.sleep(120)
+        await asyncio.sleep(300)
         await bot.delete_message(chat_id=chat_id, message_id=payment_message_id)
         await bot.send_message(chat_id, "❌ Your 5 minutes have run out! The payment has been canceled. Try again later.")
         payment_timers.pop(chat_id, None)
