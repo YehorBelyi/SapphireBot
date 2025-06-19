@@ -1,10 +1,11 @@
 import math
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import joinedload
 
 from database.models import Product, Cart, Category, Banner, User, History
-
+from database.redis_client import redis_client
 
 # === Admin panel ===
 async def orm_add_product(session: AsyncSession, data: dict):
@@ -24,9 +25,27 @@ async def orm_get_products(session: AsyncSession, category_id: int):
     return result.scalars().all()
 
 async def orm_get_product(session: AsyncSession, product_id: int):
+    key = f"product:{product_id}:"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     query = select(Product).where(Product.id == product_id)
     result = await session.execute(query)
-    return result.scalar()
+    product = result.scalar()
+
+    if product:
+        data = {
+            "id": product.id,
+            "name": product.name,
+            "description": product.description,
+            "price": product.price,
+            "image": product.image,
+            "category_id": product.category_id,
+        }
+        await redis_client.set(key, json.dumps(data), ex=300)
+        return data
+    return None
 
 async def orm_update_product(session: AsyncSession, product_id: int, data):
     query = update(Product).where(Product.id == product_id).values(
@@ -38,11 +57,13 @@ async def orm_update_product(session: AsyncSession, product_id: int, data):
     )
     await session.execute(query)
     await session.commit()
+    await redis_client.delete(f"product:{product_id}")
 
 async def orm_delete_product(session: AsyncSession, product_id: int):
     query = delete(Product).where(Product.id == product_id)
     await session.execute(query)
     await session.commit()
+    await redis_client.delete(f"product:{product_id}")
 
 # === Roles methods ===
 async def orm_add_employee(session: AsyncSession, data: dict):
@@ -69,20 +90,41 @@ async def orm_add_to_cart(session: AsyncSession, user_id: int, product_id: int):
     if cart:
         cart.quantity += 1
         await session.commit()
+        await redis_client.delete(f"cart:{user_id}")
         return cart
     else:
         session.add(Cart(user_id=user_id, product_id=product_id, quantity=1))
         await session.commit()
+    await redis_client.delete(f"cart:{user_id}")
 
 async def orm_get_user_carts(session: AsyncSession, user_id: int):
+    key = f"cart:{user_id}"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     query = select(Cart).where(Cart.user_id == user_id).options(joinedload(Cart.product))
     result = await session.execute(query)
-    return result.scalars().all()
+    carts = result.scalars().all()
+
+    data = [
+        {
+            "product_id": cart.product.id,
+            "name": cart.product.name,
+            "price": float(cart.product.price),
+            "image": cart.product.image,
+            "quantity": cart.quantity
+        }
+        for cart in carts
+    ]
+    await redis_client.set(key, json.dumps(data), ex=300)
+    return data
 
 async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_id: int):
     query = delete(Cart).where(Cart.user_id == user_id, Cart.product_id == product_id)
     await session.execute(query)
     await session.commit()
+    await redis_client.delete(f"cart:{user_id}")
 
 async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, product_id: int):
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_id == product_id)
@@ -94,20 +136,23 @@ async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, produc
     if cart.quantity > 1:
         cart.quantity -= 1
         await session.commit()
+        await redis_client.delete(f"cart:{user_id}")
         return True
     else:
         await orm_remove_from_cart(session, user_id, product_id)
         await session.commit()
+        await redis_client.delete(f"cart:{user_id}")
         return False
 
 async def orm_flush_cart(session: AsyncSession, user_id: int):
     query = delete(Cart).where(Cart.user_id == user_id)
     await session.execute(query)
     await session.commit()
+    await redis_client.delete(f"cart:{user_id}")
 
 # === Order history ===
-async def orm_add_order_to_history(session: AsyncSession, user_orders: list):
-    session.add_all([History(user_id=item.user_id, product_id=item.product_id) for item in user_orders])
+async def orm_add_order_to_history(session: AsyncSession, user_id: int, user_orders: list):
+    session.add_all([History(user_id=user_id, product_id=item["product_id"]) for item in user_orders])
     await session.commit()
 
 async def orm_get_order_history(session: AsyncSession, user_id: int):
@@ -130,22 +175,72 @@ async def orm_update_banner_image(session: AsyncSession, name: str, image: str):
     query = update(Banner).where(Banner.name == name).values(image=image)
     await session.execute(query)
     await session.commit()
+    await redis_client.delete(f"banner:{name}")
 
 async def orm_get_banner(session: AsyncSession, page:str):
+    key = f"banner:{page}"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     query = select(Banner).where(Banner.name == page)
     result = await session.execute(query)
-    return result.scalar()
+    banner =  result.scalar()
+
+    if banner:
+        data = {
+            "id": banner.id,
+            "name": banner.name,
+            "image":banner.image,
+            "description": banner.description
+        }
+        await redis_client.set(key, json.dumps(data), ex=300)
+        return data
+    return None
 
 async def orm_get_page_description(session: AsyncSession):
+    key = "page_descriptions"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     query = select(Banner)
     result = await session.execute(query)
-    return result.scalars().all()
+    banners = result.scalars().all()
+
+    data = [
+        {
+            "id": b.id,
+            "name": b.name,
+            "image": b.image,
+            "description": b.description
+        }
+        for b in banners
+    ]
+    await redis_client.set(key, json.dumps(data), ex=300)
+    print(await redis_client(get(key)))
+    return data
 
 # === Category methods ===
 async def orm_get_categories(session: AsyncSession):
+    key = "categories"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     query = select(Category)
     result = await session.execute(query)
-    return result.scalars().all()
+    categories = result.scalars().all()
+
+    data = [
+        {
+            "id": c.id,
+            "name": c.name
+        }
+        for c in categories
+    ]
+    await redis_client.set(key, json.dumps(data), ex=300)
+    return data
 
 async def orm_insert_categories(session: AsyncSession, categories: list):
     query = select(Category)

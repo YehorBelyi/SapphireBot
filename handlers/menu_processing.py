@@ -9,14 +9,14 @@ from utils.paginator import Paginator
 
 async def main_menu(session, level, menu_name):
     banner = await orm_get_banner(session, menu_name)
-    image = InputMediaPhoto(media=banner.image, caption=banner.description)
+    image = InputMediaPhoto(media=banner["image"], caption=banner["description"])
     kbds = get_user_main_btns(level=level)
 
     return image, kbds
 
 async def catalog(session, level, menu_name):
     banner = await orm_get_banner(session, menu_name)
-    image = InputMediaPhoto(media=banner.image, caption=banner.description)
+    image = InputMediaPhoto(media=banner["image"], caption=banner["description"])
 
     categories = await orm_get_categories(session)
     kbds = get_user_catalog_btns(level=level, categories=categories)
@@ -72,7 +72,7 @@ async def carts(session, level, menu_name, page, user_id, product_id):
 
     if not carts:
         banner = await orm_get_banner(session, "cart")
-        image = InputMediaPhoto(media=banner.image, caption=banner.description)
+        image = InputMediaPhoto(media=banner["image"], caption=banner["description"])
 
         kbds = get_user_cart(
             level=level,
@@ -85,11 +85,11 @@ async def carts(session, level, menu_name, page, user_id, product_id):
 
         cart = paginator.get_page()[0]
 
-        cart_price = round(cart.quantity*cart.product.price, 2)
-        total_price = round(sum(cart.quantity*cart.product.price for cart in carts), 2)
-        image = InputMediaPhoto(media=cart.product.image,
-                                caption=f"<b>{cart.product.name}</b>\n"
-                                        f"{cart.product.price}UAH x {cart.quantity} = {cart_price}UAH\n"
+        cart_price = round(cart["quantity"]*cart["price"], 2)
+        total_price = round(sum(cart["quantity"]*cart["price"] for cart in carts), 2)
+        image = InputMediaPhoto(media=cart["image"],
+                                caption=f"<b>{cart["name"]}</b>\n"
+                                        f"{cart["price"]}UAH x {cart["quantity"]} = {cart_price}UAH\n"
                                         f"Product {paginator.page} out of {paginator.pages}\n"
                                         f"Total Price: {total_price}\n")
 
@@ -97,13 +97,13 @@ async def carts(session, level, menu_name, page, user_id, product_id):
         kbds = get_user_cart(level=level,
                              page=page,
                              pagination_btns=paginations_btns,
-                             product_id=cart.product.id)
+                             product_id=cart["product_id"])
 
     return image, kbds
 
 async def pre_payment_check(session: AsyncSession, level: int, menu_name: str):
     banner = await orm_get_banner(session, menu_name)
-    image = InputMediaPhoto(media=banner.image, caption=banner.description)
+    image = InputMediaPhoto(media=banner["image"], caption=banner["description"])
     kbds = get_pre_payment_btns(level=level)
 
     return image, kbds
