@@ -25,7 +25,7 @@ async def orm_get_products(session: AsyncSession, category_id: int):
     return result.scalars().all()
 
 async def orm_get_product(session: AsyncSession, product_id: int):
-    key = f"product:{product_id}:"
+    key = f"product:{product_id}"
     cached = await redis_client.get(key)
     if cached:
         return json.loads(cached)
@@ -43,7 +43,6 @@ async def orm_get_product(session: AsyncSession, product_id: int):
             "image": product.image,
             "category_id": product.category_id,
         }
-        print(data)
         await redis_client.set(key, json.dumps(data), ex=300)
         return data
     return None
@@ -66,11 +65,6 @@ async def orm_delete_product(session: AsyncSession, product_id: int):
     await session.commit()
     await redis_client.delete(f"product:{product_id}")
 
-# === Roles methods ===
-async def orm_add_employee(session: AsyncSession, data: dict):
-    query = select(Employee).where(Employee.user_id == user_id)
-
-
 # === User methods ===
 async def orm_add_user(session: AsyncSession,
                        user_id: int,
@@ -90,60 +84,77 @@ async def orm_add_to_cart(session: AsyncSession, user_id: int, product_id: int):
     cart = cart.scalar()
     if cart:
         cart.quantity += 1
-        await session.commit()
-        await redis_client.delete(f"cart:{user_id}")
-        return cart
     else:
         session.add(Cart(user_id=user_id, product_id=product_id, quantity=1))
-        await session.commit()
-    await redis_client.delete(f"cart:{user_id}")
+
+    await session.commit()
+    key = f"cart:{user_id}"
+    await redis_client.hincrby(key, str(product_id), 1)
+    await redis_client.expire(key, 300)
 
 async def orm_get_user_carts(session: AsyncSession, user_id: int):
     key = f"cart:{user_id}"
-    cached = await redis_client.get(key)
-    if cached:
-        return json.loads(cached)
+    redis_cart = await redis_client.hgetall(key)
 
-    query = select(Cart).where(Cart.user_id == user_id).options(joinedload(Cart.product))
-    result = await session.execute(query)
-    carts = result.scalars().all()
+    user_cart = []
+    if redis_cart:
+        for redis_product_id, redis_product_quantity in redis_cart.items():
+            product_id = int(redis_product_id)
+            quantity = int(redis_product_quantity)
 
-    data = [
-        {
-            "product_id": cart.product.id,
-            "name": cart.product.name,
-            "price": float(cart.product.price),
-            "image": cart.product.image,
-            "quantity": cart.quantity
-        }
-        for cart in carts
-    ]
-    await redis_client.set(key, json.dumps(data), ex=300)
-    return data
+            product_data = await orm_get_product(session, product_id)
+            if product_data:
+                product_data["product_id"] = product_data.pop("id")
+                product_data["quantity"] = quantity
+                user_cart.append(product_data)
+
+        await redis_client.expire(key, 300)
+    else:
+        query = select(Cart).where(Cart.user_id == user_id).options(joinedload(Cart.product))
+        result = await session.execute(query)
+        carts = result.scalars().all()
+
+        if carts:
+            redis_pipeline = redis_client.pipeline()
+            for item in carts:
+                product_data = {
+                    "product_id": item.product.id,
+                    "name": item.product.name,
+                    "description": item.product.description,
+                    "price": float(item.product.price),
+                    "image": item.product.image,
+                    "category_id": item.product.category_id,
+                    "quantity": item.quantity
+                }
+                user_cart.append(product_data)
+                redis_pipeline.hset(key, str(item.product_id), item.quantity)
+            await redis_pipeline.execute()
+            await redis_client.expire(key, 300)
+
+    return user_cart
 
 async def orm_delete_from_cart(session: AsyncSession, user_id: int, product_id: int):
     query = delete(Cart).where(Cart.user_id == user_id, Cart.product_id == product_id)
     await session.execute(query)
     await session.commit()
-    await redis_client.delete(f"cart:{user_id}")
+
+    key = f"cart:{user_id}"
+    await redis_client.hdel(key, str(product_id))
+    await redis_client.expire(key, 300)
 
 async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, product_id: int):
     query = select(Cart).where(Cart.user_id == user_id, Cart.product_id == product_id)
     cart = await session.execute(query)
     cart = cart.scalar()
 
-    if not cart:
-        return
-    if cart.quantity > 1:
+    if cart and cart.quantity > 1:
         cart.quantity -= 1
         await session.commit()
-        await redis_client.delete(f"cart:{user_id}")
-        return True
-    else:
-        await orm_remove_from_cart(session, user_id, product_id)
-        await session.commit()
-        await redis_client.delete(f"cart:{user_id}")
-        return False
+        key = f"cart:{user_id}"
+        await redis_client.hincrby(key, str(product_id), -1)
+        await redis_client.expire(key, 300)
+    elif cart and cart.quantity == 1:
+        await orm_delete_from_cart(session, user_id, product_id)
 
 async def orm_flush_cart(session: AsyncSession, user_id: int):
     query = delete(Cart).where(Cart.user_id == user_id)
@@ -295,6 +306,7 @@ async def orm_add_employee(session: AsyncSession, data: dict):
 
     session.add(obj)
     await session.commit()
+    await redis_client.delete("employees")
 
 async def orm_get_employees(session: AsyncSession):
     key = "employees"

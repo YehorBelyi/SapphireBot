@@ -81,7 +81,7 @@ async def go_back_handler(message: types.Message, state: FSMContext) -> None:
 
     current_state = await state.get_state()
     if current_state == AddProduct.name:
-        await message.answer("This is first step of adding a product. Type '/cancel' to abort the process")
+        await message.answer("This is first step of adding/editing a product. Type '/cancel' to abort the process")
         return
 
     previous = None

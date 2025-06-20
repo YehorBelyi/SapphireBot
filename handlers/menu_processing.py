@@ -82,7 +82,6 @@ async def carts(session, level, menu_name, page, user_id, product_id):
         )
     else:
         paginator = Paginator(carts, page=page)
-
         cart = paginator.get_page()[0]
 
         cart_price = round(cart["quantity"]*cart["price"], 2)
@@ -92,7 +91,6 @@ async def carts(session, level, menu_name, page, user_id, product_id):
                                         f"{cart["price"]}UAH x {cart["quantity"]} = {cart_price}UAH\n"
                                         f"Product {paginator.page} out of {paginator.pages}\n"
                                         f"Total Price: {total_price}\n")
-
         paginations_btns = pages(paginator)
         kbds = get_user_cart(level=level,
                              page=page,
