@@ -2,6 +2,8 @@ from aiogram.utils.formatting import Bold, as_list, as_marked_section
 
 categories = ["New Balance", "Nike"]
 
+roles = ["administrator", "manager"]
+
 page_description = {
     "main": "Welcome to the Sapphire Shop!",
     "about": "We are online shop. We work 24 per 7.",

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Float, DateTime, func, Integer, Nullable, Numeric, ForeignKey
+from sqlalchemy import String, Text, Float, DateTime, func, Integer, Nullable, Numeric, ForeignKey, BigInteger
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -38,7 +38,7 @@ class User(Base):
     __tablename__ = 'user'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(unique=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, unique=True)
     first_name: Mapped[str] = mapped_column(String(150), nullable=True)
     last_name: Mapped[str] = mapped_column(String(150), nullable=True)
     phone: Mapped[str] = mapped_column(String(20), nullable=True)
@@ -64,18 +64,21 @@ class History(Base):
     user: Mapped["User"] = relationship(backref="history")
     product: Mapped["Product"] = relationship(backref="history")
 
-# # Models for role handling
-# class Employee(Base):
-#     __tablename__ = 'employee'
-#
-#     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-#     user_id: Mapped[int] = mapped_column(unique=True)
-#     first_name: Mapped[str] = mapped_column(String(150), nullable=True)
-#     last_name: Mapped[str] = mapped_column(String(150), nullable=True)
-#     phone: Mapped[str] = mapped_column(String(20), nullable=True)
-#
-# class Administrator(Base):
-#     __tablename__ = 'administrator'
-#
-#     employee_id: Mapped[int] = mapped_column(ForeignKey('employee.id', ondelete='CASCADE'), nullable=False)
-#     category: Mapped["Category"] = relationship(backref="employee")
+# Models for role handling
+class Role(Base):
+    __tablename__ = 'role'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+
+class Employee(Base):
+    __tablename__ = 'employee'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, unique=True)
+    first_name: Mapped[str] = mapped_column(String(20), nullable=True)
+    last_name: Mapped[str] = mapped_column(String(20), nullable=True)
+    phone: Mapped[str] = mapped_column(String(20), nullable=True)
+    role_id: Mapped[int] = mapped_column(ForeignKey('role.id', ondelete='CASCADE'), nullable=False)
+
+    role: Mapped["Role"] = relationship(backref="employee")

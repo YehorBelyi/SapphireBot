@@ -3,9 +3,9 @@ import dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from database.models import Base
-from database.orm_query import orm_add_banner_description, orm_insert_categories
+from database.orm_query import orm_add_banner_description, orm_insert_categories, orm_add_employee, orm_add_roles
 
-from common.view import categories, page_description
+from common.view import categories, page_description, roles
 
 # Creating database engine
 engine = create_async_engine(os.getenv('DB_URL'), echo=True)
@@ -22,9 +22,16 @@ async def create_db():
         await orm_insert_categories(session, categories)
         await orm_add_banner_description(session, page_description)
 
+        await orm_add_roles(session, roles)
         # adding super admin
-        # await orm_add_super_admin(session, os.getenv('SUPER_ADMIN'))
-
+        await orm_add_employee(session,
+                                    data={
+                                        "user_id":int(os.getenv("SUPER_ADMIN_ID")),
+                                        "first_name":os.getenv("SUPER_ADMIN_FIRSTNAME"),
+                                        "last_name":os.getenv("SUPER_ADMIN_LASTNAME"),
+                                        "phone":os.getenv("SUPER_ADMIN_PHONE"),
+                                        "role_id":roles.index("administrator")+1,
+                                    })
 
 async def drop_db():
     async with engine.begin() as conn:

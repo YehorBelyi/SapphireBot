@@ -1,6 +1,8 @@
 import asyncio
 import os
 import logging
+
+from database.orm_query import orm_get_employees
 from dotenv import load_dotenv
 from middlewares.database import DataBaseSession
 
@@ -23,8 +25,8 @@ from common.bot_cmds_list import private
 bot = Bot(token=os.getenv("BOT_TOKEN"), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# Addomg admins for my bot
-bot.my_admins_list = []
+# Adding admins for my bot
+bot.my_admins_list = set()
 
 # Added all handlers from modules
 dp.include_routers(user_private_router, user_group_router, admin_router, payment_router)
@@ -56,6 +58,7 @@ async def main() -> None:
     # resolve_used_update_types - bot will process only those updates, which we use in the project
     # in particular: message, edited_message, callback_query
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

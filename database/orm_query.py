@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import joinedload
 
-from database.models import Product, Cart, Category, Banner, User, History
+from database.models import Product, Cart, Category, Banner, User, History, Employee, Role
 from database.redis_client import redis_client
 
 # === Admin panel ===
@@ -39,10 +39,11 @@ async def orm_get_product(session: AsyncSession, product_id: int):
             "id": product.id,
             "name": product.name,
             "description": product.description,
-            "price": product.price,
+            "price": float(product.price),
             "image": product.image,
             "category_id": product.category_id,
         }
+        print(data)
         await redis_client.set(key, json.dumps(data), ex=300)
         return data
     return None
@@ -248,3 +249,74 @@ async def orm_insert_categories(session: AsyncSession, categories: list):
         return
     session.add_all([Category(name=name) for name in categories])
     await session.commit()
+
+# === Roles methods ===
+async def orm_add_roles(session: AsyncSession, roles: list):
+    query = select(Role)
+    result = await session.execute(query)
+    if result.first():
+        return
+    session.add_all([Role(name=role) for role in roles])
+    await session.commit()
+
+async def orm_get_roles(session: AsyncSession):
+    key = "roles"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
+    query = select(Role)
+    result = await session.execute(query)
+    roles = result.scalars().all()
+
+    data = [
+        {
+            "id": r.id,
+            "name": r.name
+        }
+        for r in roles
+    ]
+    await redis_client.set(key, json.dumps(data), ex=300)
+    return data
+
+async def orm_add_employee(session: AsyncSession, data: dict):
+    query = select(Employee).where(Employee.user_id == int(data["user_id"])).options(joinedload(Employee.role))
+    result = await session.execute(query)
+    if result.first():
+        return
+
+    obj = Employee(
+        user_id=int(data["user_id"]),
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+        phone=data["phone"],
+        role_id=int(data["role_id"]),
+    )
+
+    session.add(obj)
+    await session.commit()
+
+async def orm_get_employees(session: AsyncSession):
+    key = "employees"
+    cached = await redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
+    query = select(Employee).options(joinedload(Employee.role))
+    result = await session.execute(query)
+    employees = result.scalars().all()
+
+    data = [
+        {
+            "id": e.id,
+            "user_id": e.user_id,
+            "first_name": e.first_name,
+            "last_name": e.last_name,
+            "phone": e.phone,
+            "role_id": e.role_id,
+        }
+        for e in employees
+    ]
+    print(data)
+    await redis_client.set(key, json.dumps(data))
+    return data

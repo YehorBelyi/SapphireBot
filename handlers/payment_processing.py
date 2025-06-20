@@ -2,6 +2,7 @@ from idlelib.undo import Command
 
 from aiogram.fsm.state import StatesGroup, State
 from database.orm_query import orm_get_order_history, orm_add_order_to_history, orm_get_user_carts, orm_flush_cart
+from handlers.logs import log_new_order_notification
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.types import CallbackQuery, PreCheckoutQuery, SuccessfulPayment, LabeledPrice
 from aiogram import F, Router, Bot
@@ -21,7 +22,7 @@ async def pre_checkout_query_handler(pre_checkout_query: PreCheckoutQuery):
     await pre_checkout_query.bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True, error_message="Something went wrong")
 
 @payment_router.message(F.successful_payment)
-async def success(message: Message, session: AsyncSession):
+async def success(message: Message, session: AsyncSession, bot: Bot):
     task = payment_timers.pop(message.chat.id, None)
     if task:
         task.cancel()
@@ -29,6 +30,7 @@ async def success(message: Message, session: AsyncSession):
         print(user_orders)
         await orm_add_order_to_history(session=session, user_id=message.from_user.id, user_orders=user_orders)
         await message.answer("✅ Thanks! Your products have been added to your order history.")
+        await log_new_order_notification(user_orders=user_orders, user_id=message.from_user.id, bot=bot)
         await orm_flush_cart(session=session, user_id=message.from_user.id)
 
 async def process_payment(session: AsyncSession, user_id: int, callback: CallbackQuery):

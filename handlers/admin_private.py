@@ -2,12 +2,14 @@ from aiogram import F, Router, types, Bot
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from common.bot_cmds_list import admin_commands
 from database.orm_query import orm_add_product, orm_get_products, orm_get_product, orm_delete_product, \
-    orm_update_product, orm_get_categories, orm_get_page_description, orm_update_banner_image
+    orm_update_product, orm_get_categories, orm_get_page_description, orm_update_banner_image, orm_get_roles, \
+    orm_add_employee
 
 from filters.chat_types import ChatTypeFilter
 from filters.admin_filter import IsAdmin
-from handlers.logs import log_product_added
+from handlers.logs import log_product_added, log_product_edited, log_product_deleted, log_new_employee
 from keyboards.inline import get_callback_btns
 from keyboards.reply import generate_keyboard
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +40,15 @@ class AddProduct(StatesGroup):
         'AddProduct:price': 'Type price of the product again:',
         'AddProduct:image': 'Attach image of the product again:',
     }
+
+class AddEmployee(StatesGroup):
+    user_id = State()
+    first_name = State()
+    last_name = State()
+    phone = State()
+    role_id = State()
+
+    employee_to_edit = None
 
 @admin_router.message(Command("admin"))
 async def admin_features(message: types.Message):
@@ -84,7 +95,7 @@ async def go_back_handler(message: types.Message, state: FSMContext) -> None:
 @admin_router.message(AddProduct.name, or_f(F.text, F.text == "."))
 async def add_name(message: types.Message, state: FSMContext):
     if message.text == ".":
-        await state.update_data(name=AddProduct.product_to_edit.name)
+        await state.update_data(name=AddProduct.product_to_edit["name"])
     else:
         if len(message.text) >= 100:
             await message.answer("Name length of the product can't be greater than 100 characters!")
@@ -97,7 +108,7 @@ async def add_name(message: types.Message, state: FSMContext):
 @admin_router.message(AddProduct.desc, F.text)
 async def add_desc(message: types.Message, state: FSMContext, session: AsyncSession):
     if message.text == ".":
-        await state.update_data(desc=AddProduct.product_to_edit.description)
+        await state.update_data(desc=AddProduct.product_to_edit["description"])
     else:
         await state.update_data(desc=message.text)
 
@@ -120,7 +131,7 @@ async def add_category(callback: types.CallbackQuery, state: FSMContext, session
 @admin_router.message(AddProduct.price, or_f(F.text, F.text == "."))
 async def add_price(message: types.Message, state: FSMContext):
     if message.text == ".":
-        await state.update_data(price=AddProduct.product_to_edit.price)
+        await state.update_data(price=AddProduct.product_to_edit["price"])
     else:
         try:
             float(message.text)
@@ -136,7 +147,7 @@ async def add_price(message: types.Message, state: FSMContext):
 async def add_image(message: types.Message, state: FSMContext, session: AsyncSession, bot: Bot):
 
     if message.text and message.text == ".":
-        await state.update_data(image=AddProduct.product_to_edit.image)
+        await state.update_data(image=AddProduct.product_to_edit["image"])
     else:
         await state.update_data(image=message.photo[-1].file_id)
 
@@ -144,13 +155,14 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
 
     try:
         if AddProduct.product_to_edit:
-            await orm_update_product(session, AddProduct.product_to_edit.id, data)
+            await orm_update_product(session, AddProduct.product_to_edit["id"], data)
             await message.answer("Your product has been edited", reply_markup=ADMIN_KB)
+            await log_product_edited(data=data, bot=bot)
         else:
-            await orm_add_product(session, data)
+            await orm_add_product(session=session, data=data)
             await message.answer("Your product has been added", reply_markup=ADMIN_KB)
+            await log_product_added(data=data, bot=bot)
         await state.clear()
-        await log_product_added(data=data, bot=bot)
     except Exception as e:
         await message.answer(f"Something went wrong while adding your product. Report this problem", reply_markup=ADMIN_KB)
         print(str(e))
@@ -178,11 +190,13 @@ async def show_products(callback: types.CallbackQuery, session: AsyncSession):
                                    }))
 
 @admin_router.callback_query(F.data.startswith("delete_"))
-async def delete_product(callback: types.CallbackQuery, session: AsyncSession):
+async def delete_product(callback: types.CallbackQuery, session: AsyncSession, bot:Bot):
     product_id = callback.data.split("_")[-1]
     await orm_delete_product(session, int(product_id))
+    await callback.message.delete()
     await callback.answer("Deleted product")
     await callback.message.answer(f"Product with <b>ID: {product_id}</b> has been deleted")
+    await log_product_deleted(product_id=product_id, bot=bot)
 
 @admin_router.callback_query(StateFilter(None), F.data.startswith("edit_"))
 async def edit_product(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -217,3 +231,99 @@ async def add_banner(message: types.Message, state: FSMContext, session: AsyncSe
     await orm_update_banner_image(session, for_page, image_id,)
     await message.answer("Your banner has been added/edited", reply_markup=ADMIN_KB)
     await state.clear()
+
+@admin_router.message(Command("admin_help"))
+async def admin_help(message: types.Message):
+    str = f"🛑 <b>ADMIN PANNEL</b> 🛑\n"
+
+    for index, (command, desc) in enumerate(admin_commands.items(), start=1):
+        str += f"{index}) {command} - {desc}\n"
+
+    await message.answer(str)
+
+@admin_router.message(StateFilter(None), Command("add_employee"))
+async def add_admin(message: types.Message, state: FSMContext):
+    await message.answer("1️⃣ Provide new employees Telegram ID: ")
+    await state.set_state(AddEmployee.user_id)
+
+@admin_router.message(AddEmployee.user_id, or_f(F.text, F.text == "."))
+async def add_user_id(message: types.Message, state: FSMContext):
+    if message.text == ".":
+        await state.update_data(user_id=AddEmployee.employee_to_edit["user_id"])
+    else:
+        try:
+            int(message.text)
+        except ValueError:
+            await message.answer("⚠️ Invalid ID was provided! Try again.")
+            return
+
+        await state.update_data(user_id=message.text)
+
+    await message.answer("2️⃣ Provide employees first name: ")
+    await state.set_state(AddEmployee.first_name)
+
+@admin_router.message(AddEmployee.first_name, or_f(F.text, F.text == "."))
+async def add_first_name(message: types.Message, state: FSMContext):
+    if message.text == ".":
+        await state.update_data(first_name=AddEmployee.employee_to_edit["first_name"])
+    else:
+        if len(message.text) >= 20:
+            await message.answer("⚠️ First name can't be more than 20 characters.")
+            return
+
+        await state.update_data(first_name=message.text)
+
+    await message.answer("3️⃣ Provide employees last name: ")
+    await state.set_state(AddEmployee.last_name)
+
+@admin_router.message(AddEmployee.last_name, or_f(F.text, F.text == "."))
+async def add_last_name(message: types.Message, state: FSMContext):
+    if message.text == ".":
+        await state.update_data(last_name=AddEmployee.employee_to_edit["last_name"])
+    else:
+        if len(message.text) >= 20:
+            await message.answer("⚠️ Last name can't be more than 20 characters.")
+            return
+
+        await state.update_data(last_name=message.text)
+
+    await message.answer("4️⃣ Provide employees phone: ")
+    await state.set_state(AddEmployee.phone)
+
+@admin_router.message(AddEmployee.phone, or_f(F.text, F.text == "."))
+async def add_phone(message: types.Message, state: FSMContext, session: AsyncSession):
+    if message.text == ".":
+        await state.update_data(phone=AddEmployee.employee_to_edit["phone"])
+    else:
+        if len(message.text) >= 20:
+            await message.answer("⚠️ Phone can't be more than 20 characters.")
+            return
+
+        await state.update_data(phone=message.text)
+
+    roles = await orm_get_roles(session)
+    btns = {role["name"]:str(role["id"]) for role in roles}
+    await message.answer("4️⃣ Choose the role of employee: ", reply_markup=get_callback_btns(btns=btns))
+    await state.set_state(AddEmployee.role_id)
+
+@admin_router.callback_query(AddEmployee.role_id)
+async def add_role(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
+    if int(callback.data) in [role["id"] for role in await orm_get_roles(session)]:
+        await state.update_data(role_id=callback.data)
+
+        data = await state.get_data()
+
+        try:
+            if AddEmployee.employee_to_edit:
+                ...
+            else:
+                await orm_add_employee(session, data)
+                await callback.message.answer("✅ New employee has been added to the shop!")
+                await log_new_employee(data=data, bot=bot)
+            await state.clear()
+        except Exception as e:
+            await callback.message.answer(f"Something went wrong while adding new employee. Report this problem")
+            print(str(e))
+            await state.clear()
+
+        AddEmployee.employee_to_edit = None
