@@ -27,7 +27,6 @@ async def success(message: Message, session: AsyncSession, bot: Bot):
     if task:
         task.cancel()
         user_orders = await orm_get_user_carts(session, message.from_user.id)
-        print(user_orders)
         await orm_add_order_to_history(session=session, user_id=message.from_user.id, user_orders=user_orders)
         await message.answer("✅ Thanks! Your products have been added to your order history.")
         await log_new_order_notification(user_orders=user_orders, user_id=message.from_user.id, bot=bot)

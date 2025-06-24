@@ -50,7 +50,7 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
         await callback.message.edit_media(media=media, reply_markup=reply_markup)
         await callback.answer()
     except Exception as e:
-        pass
+        print(f"Menu error: {e}")
 
 @user_private_router.message(Command("history"))
 async def user_history(message: types.Message, session: AsyncSession):
